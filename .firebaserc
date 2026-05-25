@@ -1,5 +1,7 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "radar360-portal-ubaldo"
+  },
   "targets": {},
   "etags": {}
 }

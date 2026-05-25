@@ -1,8 +1,8 @@
-# 📰 El Infiltrado — Portal de Noticias
+# 📰 Radar360 — Portal de Noticias
 
 Portal de noticias moderno construido con **React 19 + Vite + Tailwind CSS 4**, con panel de administración, transmisión en vivo, sistema de anuncios y suscripciones.
 
-🌐 **Sitio en vivo:** [https://raite-app-144dd.web.app](https://raite-app-144dd.web.app)
+🌐 **Sitio en vivo:** [https://radar360-portal-ubaldo.web.app](https://radar360-portal-ubaldo.web.app)
 
 ---
 
@@ -16,8 +16,8 @@ Portal de noticias moderno construido con **React 19 + Vite + Tailwind CSS 4**, 
 
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/ubaldo1971/el-infiltrado.git
-cd el-infiltrado
+git clone https://github.com/ubaldo1971/radar360.git
+cd radar360
 
 # 2. Instalar dependencias
 npm install
@@ -48,7 +48,7 @@ El portal estará disponible en **http://localhost:5173/**
 npm run build
 
 # 2. Deploy
-npx firebase-tools deploy --only hosting --project raite-app-144dd
+npx firebase-tools deploy --only hosting --project radar360-portal-ubaldo
 ```
 
 ---
@@ -56,7 +56,7 @@ npx firebase-tools deploy --only hosting --project raite-app-144dd
 ## 🔐 Panel de Administración
 
 Accede en: `/admin`  
-**Contraseña:** `infiltrado2026`
+**Contraseña:** `radar3602026`
 
 ### Funcionalidades del Admin:
 - **Dashboard** — Métricas generales del portal
@@ -83,7 +83,7 @@ Accede en: `/admin`
 ## 📁 Estructura del Proyecto
 
 ```
-el-infiltrado/
+radar360/
 ├── public/              # Assets estáticos
 ├── src/
 │   ├── components/      # Componentes reutilizables

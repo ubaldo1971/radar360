@@ -31,7 +31,7 @@ export default function Navigation() {
     };
 
     return (
-        <nav className="bg-nav border-b border-border sticky top-0 z-50 shadow-sm">
+        <nav className="bg-card border-b border-border sticky top-0 z-50 shadow-sm">
             <div className="max-w-7xl mx-auto px-6 md:px-8">
                 {/* Desktop menu */}
                 <ul className="hidden md:flex items-center gap-1">
@@ -58,7 +58,7 @@ export default function Navigation() {
                     transition-all duration-300 ease-out
                     ${active === cat.id
                                             ? 'w-full bg-accent'
-                                            : 'w-0 bg-navy group-hover:w-full'
+                                            : 'w-0 bg-cardy group-hover:w-full'
                                         }
                   `}
                                 />
@@ -75,13 +75,13 @@ export default function Navigation() {
 
                 {/* Mobile hamburger */}
                 <div className="md:hidden flex items-center justify-between py-3">
-                    <span className="text-sm font-bold text-navy uppercase tracking-wide">Menú</span>
+                    <span className="text-sm font-bold text-text-primary uppercase tracking-wide">Menú</span>
                     <button
                         onClick={() => setMobileOpen(!mobileOpen)}
                         className="p-2 rounded-lg hover:bg-surface transition-colors"
                         aria-label="Toggle menu"
                     >
-                        <svg className="w-6 h-6 text-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-6 h-6 text-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             {mobileOpen ? (
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             ) : (
@@ -109,7 +109,7 @@ export default function Navigation() {
                     transition-all duration-300 flex items-center gap-2
                     ${active === cat.id
                                             ? 'bg-accent text-white shadow-lg shadow-accent/20 scale-[1.02]'
-                                            : 'text-text-secondary hover:bg-gradient-to-r hover:from-accent/10 hover:to-transparent hover:text-navy hover:pl-6'
+                                            : 'text-text-secondary hover:bg-gradient-to-r hover:from-accent/10 hover:to-transparent hover:text-text-primary hover:pl-6'
                                         }
                   `}
                                 >
@@ -130,7 +130,7 @@ export default function Navigation() {
  * Agrega contexto visual al menú.
  */
 function NavIcon({ catId, isActive }) {
-    const className = `w-4 h-4 transition-all duration-300 ${isActive ? 'text-accent' : 'text-text-muted group-hover:text-navy'
+    const className = `w-4 h-4 transition-all duration-300 ${isActive ? 'text-accent' : 'text-text-muted group-hover:text-text-primary'
         }`;
 
     const icons = {

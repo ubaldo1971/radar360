@@ -1,5 +1,5 @@
 /**
- * Mock data for El Infiltrado news portal.
+ * Mock data for Radar360 news portal.
  * All content is placeholder — no real news content.
  */
 

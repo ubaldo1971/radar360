@@ -24,7 +24,7 @@ export default function Header() {
     const toggleDarkMode = () => setDarkMode(!darkMode);
 
     return (
-        <header className="bg-white text-navy border-b border-border">
+        <header className="bg-card text-text-primary border-b border-border">
             <div className="max-w-7xl mx-auto px-6 md:px-8 py-5 flex items-center justify-between gap-5">
                 {/* Logo + Title */}
                 <a href="/" className="flex items-center group">

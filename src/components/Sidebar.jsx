@@ -2,6 +2,7 @@
  * Sidebar — Trending topics, ad placeholder, social follow.
  */
 import { trendingTopics, socialLinks } from '../data/mockData';
+import CandidatePoll from './CandidatePoll';
 
 /* Social icon SVGs */
 const SocialIcon = ({ type }) => {
@@ -33,6 +34,9 @@ const SocialIcon = ({ type }) => {
 export default function Sidebar() {
     return (
         <aside className="space-y-6">
+            {/* ===== Simulador de Votaciones ===== */}
+            <CandidatePoll />
+
             {/* ===== Trending Topics ===== */}
             <div className="bg-card rounded-2xl p-6 shadow-sm border border-border/50">
                 <h3 className="text-lg font-black text-text-primary uppercase tracking-wide mb-4 flex items-center gap-2">
@@ -48,7 +52,7 @@ export default function Sidebar() {
                                 href="#"
                                 className="flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm text-text-secondary hover:bg-surface hover:text-accent transition-all duration-200 group"
                             >
-                                <span className="w-6 h-6 flex items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-navy group-hover:bg-accent group-hover:text-white transition-all duration-200">
+                                <span className="w-6 h-6 flex items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-text-primary group-hover:bg-accent group-hover:text-white transition-all duration-200">
                                     {index + 1}
                                 </span>
                                 <span className="font-medium">{topic}</span>
@@ -60,7 +64,7 @@ export default function Sidebar() {
 
             {/* ===== Ad Placeholder ===== */}
             <div className="bg-card rounded-2xl overflow-hidden shadow-sm border border-border/50">
-                <div className="bg-gradient-to-br from-navy-light to-navy h-52 flex items-center justify-center">
+                <div className="bg-gradient-to-br from-surface to-card h-52 flex items-center justify-center">
                     <div className="text-center text-white/50">
                         <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -82,7 +86,7 @@ export default function Sidebar() {
                             key={link.id}
                             href={link.url}
                             aria-label={link.label}
-                            className="w-11 h-11 flex items-center justify-center rounded-full bg-navy text-white hover:bg-accent transition-all duration-200 hover:scale-110"
+                            className="w-11 h-11 flex items-center justify-center rounded-full bg-surface text-white hover:bg-accent transition-all duration-200 hover:scale-110"
                         >
                             <SocialIcon type={link.id} />
                         </a>

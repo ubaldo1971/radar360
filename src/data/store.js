@@ -291,13 +291,27 @@ export const newsArticles = {
         return data;
     },
 
-    getPublished: () => newsArticles.getAll().filter((a) => a.status === 'published').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+    // Solo las publicadas y no archivadas
+    getPublished: () => newsArticles.getAll()
+        .filter((a) => a.status === 'published' && !a.archivedAt)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
 
-    getFeatured: () => newsArticles.getAll().find((a) => a.featured && a.status === 'published') || null,
+    getFeatured: () => newsArticles.getAll()
+        .find((a) => a.featured && a.status === 'published' && !a.archivedAt) || null,
 
     getByCategory: (cat) => newsArticles.getPublished().filter((a) => a.category === cat),
 
     getByAdId: (adId) => newsArticles.getAll().find((a) => a.adId === adId) || null,
+
+    // Historial completo: activas + borradores, sin archivadas
+    getHistory: () => newsArticles.getAll()
+        .filter((a) => !a.archivedAt)
+        .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)),
+
+    // Papelera: solo las archivadas
+    getArchived: () => newsArticles.getAll()
+        .filter((a) => !!a.archivedAt)
+        .sort((a, b) => new Date(b.archivedAt) - new Date(a.archivedAt)),
 
     add: (data) => {
         const all = newsArticles.getAll();
@@ -307,6 +321,8 @@ export const newsArticles = {
             status: data.status || 'draft',
             featured: false,
             createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            archivedAt: null,
         };
         all.push(entry);
         set(KEYS.ARTICLES, all);
@@ -314,12 +330,51 @@ export const newsArticles = {
     },
 
     update: (id, updates) => {
+        const all = newsArticles.getAll();
+        const prevArticle = all.find((a) => a.id === id);
+
+        if (!prevArticle) return;
+
+        let history = prevArticle.history || [];
+        // Guardar historial si cambian datos visuales
+        if (updates.visualLayout || updates.image || updates.title || updates.excerpt) {
+            if (prevArticle.visualLayout || prevArticle.image) {
+                const historyEntry = {
+                    timestamp: Date.now(),
+                    state: {
+                        visualLayout: prevArticle.visualLayout,
+                        image: prevArticle.image,
+                        title: prevArticle.title,
+                        excerpt: prevArticle.excerpt
+                    }
+                };
+                history = [historyEntry, ...history].slice(0, 10);
+            }
+        }
+
+        const updatedAll = all.map((a) =>
+            a.id === id ? { ...a, ...updates, history, updatedAt: new Date().toISOString() } : a
+        );
+        set(KEYS.ARTICLES, updatedAll);
+    },
+
+    // Mover a papelera (no borra, solo archiva)
+    archive: (id) => {
         const all = newsArticles.getAll().map((a) =>
-            a.id === id ? { ...a, ...updates } : a
+            a.id === id ? { ...a, archivedAt: new Date().toISOString(), featured: false } : a
         );
         set(KEYS.ARTICLES, all);
     },
 
+    // Restaurar desde papelera
+    restore: (id) => {
+        const all = newsArticles.getAll().map((a) =>
+            a.id === id ? { ...a, archivedAt: null, status: 'draft' } : a
+        );
+        set(KEYS.ARTICLES, all);
+    },
+
+    // Borrar definitivamente (solo desde papelera)
     remove: (id) => {
         const all = newsArticles.getAll().filter((a) => a.id !== id);
         set(KEYS.ARTICLES, all);

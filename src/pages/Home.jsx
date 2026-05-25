@@ -1,5 +1,5 @@
 /**
- * Home — Página principal del portal El Infiltrado.
+ * Home — Página principal del portal Radar360.
  * Layout profesional organizado en bloques visuales bien separados.
  */
 import TopBar from '../components/TopBar';
@@ -56,7 +56,7 @@ export default function Home() {
           ══════════════════════════════════════════ */}
             {displayFeatured && (
                 <div className="container-custom pt-16 md:pt-20 pb-12">
-                    <FeaturedArticle article={displayFeatured} />
+                    <ArticleCard article={displayFeatured} size="large" />
                 </div>
             )}
 
@@ -86,17 +86,17 @@ export default function Home() {
                             <div className="flex-1 h-px bg-border/50" />
                         </div>
 
-                        {/* 3 tarjetas verticales */}
+                        {/* 3 tarjetas verticales (tamaño medium) */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 mb-16">
                             {topArticles.map((article) => (
-                                <ArticleCard key={article.id} article={article} />
+                                <ArticleCard key={article.id} article={article} size="medium" />
                             ))}
                         </div>
 
-                        {/* 2 tarjetas horizontales */}
+                        {/* 2 tarjetas horizontales (tamaño small) */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                             {bottomArticles.map((article) => (
-                                <ArticleCard key={article.id} article={article} variant="horizontal" />
+                                <ArticleCard key={article.id} article={article} size="small" variant="horizontal" />
                             ))}
                         </div>
                     </div>
@@ -135,7 +135,7 @@ export default function Home() {
           BLOQUE 4 — Suscripción 
           Fondo suave que se adapta
           ══════════════════════════════════════════ */}
-            <div id="subscription-section" className="bg-navy-light/5 border-y border-border/30">
+            <div id="subscription-section" className="bg-surface border-y border-border/30">
                 <div className="max-w-3xl mx-auto px-6 md:px-10 lg:px-12 py-20 md:py-28">
                     <SubscriptionForm />
                 </div>
