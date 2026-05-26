@@ -130,7 +130,7 @@ export default function PublishAd() {
 
         setLoading(true);
 
-        // Convertir todas las fotos a base64 para que persistan en localStorage
+        // Convertir todas las fotos a base64 para que persistan en Firestore
         const photoDataUrls = [];
         for (const photo of photos) {
             try {
@@ -145,22 +145,27 @@ export default function PublishAd() {
         const plan = plans.find((p) => p.id === selectedPlan);
         const section = sections.find((s) => s.id === selectedSection);
         const totalPrice = getTotal();
-        ads.add({
-            ...form,
-            plan: plan?.name || '',
-            planDays: plan?.days || 0,
-            planBasePrice: plan?.price || 0,
-            section: section?.name || '',
-            sectionKey: section?.key || '',
-            sectionMultiplier: section?.multiplier || 1,
-            totalPrice: totalPrice || 0,
-            photos: photoDataUrls,
-            photosCount: photos.length,
-            paymentStatus: 'completed',
-        });
-
-        setLoading(false);
-        setSuccess(true);
+        try {
+            await ads.add({
+                ...form,
+                plan: plan?.name || '',
+                planDays: plan?.days || 0,
+                planBasePrice: plan?.price || 0,
+                section: section?.name || '',
+                sectionKey: section?.key || '',
+                sectionMultiplier: section?.multiplier || 1,
+                totalPrice: totalPrice || 0,
+                photos: photoDataUrls,
+                photosCount: photos.length,
+                paymentStatus: 'completed',
+            });
+            setSuccess(true);
+        } catch (err) {
+            console.error("Error al registrar anuncio:", err);
+            alert("Hubo un problema al enviar tu anuncio a Firestore: " + err.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     /* ── Estado de éxito ── */

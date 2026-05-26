@@ -14,9 +14,12 @@ import FloatingButtons from '../components/FloatingButtons';
 import Footer from '../components/Footer';
 import LiveStream from '../components/LiveStream';
 import HeroMetrics from '../components/HeroMetrics';
-import { newsArticles } from '../data/store';
+import { newsArticles, useRadarStore } from '../data/store';
+import { useRadarConfig } from '../data/siteConfig';
 
 export default function Home() {
+    useRadarStore();
+    useRadarConfig();
     const allPublished = newsArticles.getPublished();
     const featuredArticle = newsArticles.getFeatured();
     const nonFeatured = allPublished.filter((a) => !a.featured);

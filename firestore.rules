@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Artículos / Noticias: Lectura para todos. Escritura (crear/editar/borrar) requiere Admin autenticado.
+    match /articles/{article} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // Planes de Precios: Lectura para todos. Escritura requiere Admin autenticado.
+    match /pricing/{price} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // Secciones del Portal: Lectura para todos. Escritura requiere Admin autenticado.
+    match /ad_sections/{section} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // Configuración General del Sitio (Visuales): Lectura para todos. Escritura requiere Admin autenticado.
+    match /site_config/{config} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // Votaciones de la Encuesta Electoral: Lectura y Actualización (votos) para todos.
+    match /polls/{poll} {
+      allow read, create: if true;
+      allow update: if true;
+    }
+    
+    // Suscripciones: Cualquiera puede suscribirse (crear). Solo Administradores autenticados pueden ver o borrar.
+    match /subscriptions/{sub} {
+      allow create: if true;
+      allow read, delete: if request.auth != null;
+      allow update: if false;
+    }
+    
+    // Anuncios Publicitarios: Anunciantes pueden enviar (crear) anuncios.
+    // Solo Administradores autenticados pueden ver la lista completa de anuncios, aprobarlos o borrarlos.
+    match /ads/{ad} {
+      allow create: if true;
+      allow read, update, delete: if request.auth != null || (resource != null && resource.data.status == 'active');
+    }
+  }
+}

@@ -4,29 +4,52 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { subscriptions, ads, pricing, adSections, newsArticles } from '../data/store';
-import { siteConfig } from '../data/siteConfig';
+import { subscriptions, ads, pricing, adSections, newsArticles, useRadarStore } from '../data/store';
+import { siteConfig, useRadarConfig } from '../data/siteConfig';
 import UnifiedVisualEditor from '../components/UnifiedVisualEditor';
-
-const ADMIN_PASSWORD = 'radar3602026';
+import { auth } from '../data/firebase';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 
 export default function Admin() {
+    useRadarStore();
+    useRadarConfig();
     const navigate = useNavigate();
     const [authenticated, setAuthenticated] = useState(false);
     const [password, setPassword] = useState('');
     const [pwError, setPwError] = useState('');
     const [activeTab, setActiveTab] = useState('dashboard');
     const [refreshKey, setRefreshKey] = useState(0);
+    const [isLoading, setIsLoading] = useState(false);
 
     const refresh = () => setRefreshKey((k) => k + 1);
 
-    const handleLogin = (e) => {
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            if (user) {
+                setAuthenticated(true);
+                setPwError('');
+            } else {
+                setAuthenticated(false);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const handleLogin = async (e) => {
         e.preventDefault();
-        if (password === ADMIN_PASSWORD) {
-            setAuthenticated(true);
-            setPwError('');
-        } else {
-            setPwError('Contraseña incorrecta');
+        setIsLoading(true);
+        setPwError('');
+        try {
+            await signInWithEmailAndPassword(auth, 'admin@radar360.com', password);
+        } catch (error) {
+            console.error("Login error:", error);
+            if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                setPwError('Contraseña incorrecta');
+            } else {
+                setPwError('Error al iniciar sesión: ' + error.message);
+            }
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -74,8 +97,8 @@ export default function Admin() {
                         )}
                     </div>
 
-                    <button type="submit" className="w-full mt-5 py-3.5 bg-gradient-to-r from-accent to-orange-500 text-white font-bold rounded-xl shadow-lg shadow-accent/25 hover:shadow-xl hover:shadow-accent/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
-                        Ingresar
+                    <button type="submit" disabled={isLoading} className="w-full mt-5 py-3.5 bg-gradient-to-r from-accent to-orange-500 text-white font-bold rounded-xl shadow-lg shadow-accent/25 hover:shadow-xl hover:shadow-accent/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50">
+                        {isLoading ? 'Ingresando...' : 'Ingresar'}
                     </button>
                     <button type="button" onClick={() => navigate('/')} className="w-full mt-3 text-white/30 text-sm hover:text-white/60 transition-colors">
                         ← Volver al sitio
@@ -192,7 +215,7 @@ export default function Admin() {
                             </svg>
                             Ver sitio
                         </button>
-                        <button onClick={() => setAuthenticated(false)} className="w-full flex items-center gap-2 px-4 py-2 text-red-400/50 hover:text-red-400 text-xs transition-colors rounded-lg hover:bg-red-500/5">
+                        <button onClick={() => signOut(auth)} className="w-full flex items-center gap-2 px-4 py-2 text-red-400/50 hover:text-red-400 text-xs transition-colors rounded-lg hover:bg-red-500/5">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                             </svg>
@@ -212,7 +235,7 @@ export default function Admin() {
                             </div>
                             <div className="flex items-center gap-2">
                                 <button onClick={() => navigate('/')} className="text-white/40 hover:text-white text-xs">Ver sitio</button>
-                                <button onClick={() => setAuthenticated(false)} className="text-red-400/60 hover:text-red-400 text-xs">Salir</button>
+                                <button onClick={() => signOut(auth)} className="text-red-400/60 hover:text-red-400 text-xs">Salir</button>
                             </div>
                         </div>
                         {/* Mobile tabs */}

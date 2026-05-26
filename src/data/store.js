@@ -1,7 +1,20 @@
 /**
- * store.js — Utilidad de almacenamiento local (simula base de datos).
- * En producción, reemplazar con API real (Supabase, Firebase, etc.).
+ * store.js — Capa de almacenamiento en tiempo real con Firebase Firestore.
+ * Sincroniza localmente (localStorage) para permitir una carga Offline-First
+ * y notifica en tiempo real a los componentes usando el hook useRadarStore.
  */
+import { useState, useEffect } from 'react';
+import { db } from './firebase';
+import { 
+    collection, 
+    doc, 
+    setDoc, 
+    updateDoc, 
+    deleteDoc, 
+    onSnapshot, 
+    writeBatch, 
+    getDocs 
+} from 'firebase/firestore';
 
 const KEYS = {
     SUBSCRIPTIONS: 'ei_subscriptions',
@@ -11,91 +24,246 @@ const KEYS = {
     ARTICLES: 'ei_articles',
 };
 
-/* ===== Helpers ===== */
-function get(key) {
+// Valores por defecto
+const DEFAULT_PRICING = [
+    { id: 'p1', name: '1 Semana', days: 7, price: 299, currency: 'MXN', active: true },
+    { id: 'p2', name: '2 Semanas', days: 14, price: 499, currency: 'MXN', active: true },
+    { id: 'p3', name: '1 Mes', days: 30, price: 899, currency: 'MXN', active: true },
+    { id: 'p4', name: '3 Meses', days: 90, price: 2299, currency: 'MXN', active: true },
+];
+
+const DEFAULT_SECTIONS = [
+    { id: 's1', name: '⭐ Hero (Noticia Principal)', key: 'hero', multiplier: 5, description: 'Posición principal del sitio — máxima visibilidad', active: true },
+    { id: 's2', name: 'Política', key: 'politics', multiplier: 1.5, description: 'Sección de noticias políticas', active: true },
+    { id: 's3', name: 'Economía', key: 'economy', multiplier: 1.5, description: 'Sección de noticias económicas', active: true },
+    { id: 's4', name: 'Deportes', key: 'sports', multiplier: 1.2, description: 'Sección deportiva', active: true },
+    { id: 's5', name: 'Tecnología', key: 'technology', multiplier: 1.3, description: 'Sección de tecnología', active: true },
+    { id: 's6', name: 'Cultura', key: 'culture', multiplier: 1.0, description: 'Sección de cultura y entretenimiento', active: true },
+    { id: 's7', name: 'Sidebar (Barra lateral)', key: 'sidebar', multiplier: 0.8, description: 'Banner en la barra lateral derecha', active: true },
+];
+
+const DEFAULT_ARTICLES = [
+    { id: 'art1', title: 'Última Hora: Gran Escándalo Político Sacude la Capital del País', excerpt: 'Las autoridades investigan presuntas irregularidades en contratos gubernamentales que podrían involucrar a varios funcionarios de alto rango.', category: 'Política', author: 'María González', image: 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=1200&h=600&fit=crop', readTime: '8 min', status: 'published', featured: true, createdAt: '2026-02-22T10:00:00Z' },
+    { id: 'art2', title: 'Actualización Económica: Cambios en el Mercado Global', excerpt: 'Los principales indicadores financieros muestran tendencias mixtas mientras los inversores evalúan el impacto de las nuevas políticas comerciales.', category: 'Economía', author: 'Carlos Ramírez', image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=600&h=400&fit=crop', readTime: '5 min', status: 'published', featured: false, createdAt: '2026-02-22T09:00:00Z' },
+    { id: 'art3', title: 'Deportes: Equipo Local Consigue Victoria Histórica', excerpt: 'Con un marcador contundente, el equipo local se posiciona como favorito para la fase final del torneo nacional.', category: 'Deportes', author: 'Roberto Herrera', image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600&h=400&fit=crop', readTime: '4 min', status: 'published', featured: false, createdAt: '2026-02-21T14:00:00Z' },
+    { id: 'art4', title: 'Tecnología: Nueva Inteligencia Artificial Revoluciona la Industria', excerpt: 'Investigadores presentan un modelo de IA capaz de resolver problemas complejos en tiempo récord.', category: 'Tecnología', author: 'Ana Martínez', image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&h=400&fit=crop', readTime: '6 min', status: 'published', featured: false, createdAt: '2026-02-21T10:00:00Z' },
+    { id: 'art5', title: 'Crisis Financiera: Bolsa de Valores Registra Caída Significativa', excerpt: 'Los mercados internacionales reaccionan ante la incertidumbre geopolítica con una jornada marcada por la volatilidad.', category: 'Economía', author: 'Luis Fernández', image: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=600&h=400&fit=crop', readTime: '5 min', status: 'published', featured: false, createdAt: '2026-02-20T16:00:00Z' },
+    { id: 'art6', title: 'Elecciones: Partidos Anuncian Candidatos para Próximos Comicios', excerpt: 'Las principales fuerzas políticas definen sus estrategias de cara a las elecciones nacionales.', category: 'Política', author: 'Patricia López', image: 'https://images.unsplash.com/photo-1540910419892-4a36d2c3266c?w=600&h=400&fit=crop', readTime: '7 min', status: 'published', featured: false, createdAt: '2026-02-20T10:00:00Z' },
+    { id: 'art7', title: 'Cultura: Festival Internacional de Cine Anuncia Programación', excerpt: 'Más de 200 películas de 45 países serán exhibidas durante la próxima edición del reconocido festival cinematográfico.', category: 'Cultura', author: 'Diana Torres', image: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=600&h=400&fit=crop', readTime: '4 min', status: 'published', featured: false, createdAt: '2026-02-19T12:00:00Z' },
+    { id: 'art8', title: 'Deportes: Selección Nacional Prepara Estrategia para Eliminatorias', excerpt: 'El cuerpo técnico confirma la convocatoria de 26 jugadores para los partidos decisivos del próximo mes.', category: 'Deportes', author: 'Miguel Ángel Ruiz', image: 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=600&h=400&fit=crop', readTime: '3 min', status: 'published', featured: false, createdAt: '2026-02-19T09:00:00Z' },
+    { id: 'art9', title: 'Ciencia: Descubrimiento Astronómico Sorprende a la Comunidad Científica', excerpt: 'Telescopios espaciales captan señales inusuales provenientes de una galaxia a millones de años luz.', category: 'Tecnología', author: 'Sofía Navarro', image: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=600&h=400&fit=crop', readTime: '6 min', status: 'published', featured: false, createdAt: '2026-02-18T15:00:00Z' },
+    { id: 'art10', title: 'Cultura: Exposición de Arte Contemporáneo Llega a la Ciudad', excerpt: 'Artistas de renombre internacional presentarán sus obras más recientes en una muestra que promete cautivar al público.', category: 'Cultura', author: 'Valentina Méndez', image: 'https://images.unsplash.com/photo-1531243269054-5ebf6f34081e?w=600&h=400&fit=crop', readTime: '4 min', status: 'published', featured: false, createdAt: '2026-02-17T11:00:00Z' },
+];
+
+/* ===== Helpers de Caché Local (Offline-First) ===== */
+function getLocalCache(key, fallback = []) {
     try {
-        return JSON.parse(localStorage.getItem(key)) || [];
+        const stored = localStorage.getItem(key);
+        return stored ? JSON.parse(stored) : fallback;
     } catch {
-        return [];
+        return fallback;
     }
 }
 
-function set(key, data) {
-    localStorage.setItem(key, JSON.stringify(data));
+function setLocalCache(key, data) {
+    try {
+        localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+        console.error("Error al actualizar local cache: ", e);
+    }
 }
 
 function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-/* ===== Suscripciones ===== */
-export const subscriptions = {
-    getAll: () => get(KEYS.SUBSCRIPTIONS),
+/* ===== Estado en Memoria y Patrón Observer ===== */
+let cachedStore = {
+    subscriptions: getLocalCache(KEYS.SUBSCRIPTIONS, []),
+    ads: getLocalCache(KEYS.ADS, []),
+    pricing: getLocalCache(KEYS.PRICING, []),
+    adSections: getLocalCache(KEYS.SECTIONS, []),
+    articles: getLocalCache(KEYS.ARTICLES, []),
+};
 
-    add: (data) => {
-        const all = get(KEYS.SUBSCRIPTIONS);
+const observers = [];
+
+function notifyObservers() {
+    observers.forEach(cb => cb());
+}
+
+/**
+ * Suscribe un callback de React a cambios globales del store.
+ */
+export function subscribeToStoreChanges(callback) {
+    observers.push(callback);
+    return () => {
+        const index = observers.indexOf(callback);
+        if (index !== -1) {
+            observers.splice(index, 1);
+        }
+    };
+}
+
+/**
+ * Hook personalizado para forzar actualizaciones automáticas de UI en tiempo real.
+ */
+export function useRadarStore() {
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+        return subscribeToStoreChanges(() => setTick(t => t + 1));
+    }, []);
+    return tick;
+}
+
+/* ===== Sincronización con Firestore ===== */
+
+// Variable para controlar si ya realizamos la siembra inicial
+let isSeeding = false;
+
+async function seedInitialDataIfEmpty() {
+    if (isSeeding) return;
+    isSeeding = true;
+    try {
+        const querySnapshot = await getDocs(collection(db, 'articles'));
+        if (querySnapshot.empty) {
+            console.log("🔥 Firestore está vacío. Iniciando siembra (seeding) automática...");
+            const batch = writeBatch(db);
+
+            // Subir artículos por defecto
+            DEFAULT_ARTICLES.forEach(art => {
+                const docRef = doc(collection(db, 'articles'), art.id);
+                batch.set(docRef, { ...art, updatedAt: new Date().toISOString() });
+            });
+
+            // Subir tarifas por defecto
+            DEFAULT_PRICING.forEach(p => {
+                const docRef = doc(collection(db, 'pricing'), p.id);
+                batch.set(docRef, p);
+            });
+
+            // Subir secciones por defecto
+            DEFAULT_SECTIONS.forEach(s => {
+                const docRef = doc(collection(db, 'ad_sections'), s.id);
+                batch.set(docRef, s);
+            });
+
+            await batch.commit();
+            console.log("✅ Siembra de datos completada exitosamente.");
+        }
+    } catch (error) {
+        console.error("Error durante la siembra de datos: ", error);
+    } finally {
+        isSeeding = false;
+    }
+}
+
+// Suscribirse a las colecciones de Firestore
+const collectionsMap = [
+    { colName: 'subscriptions', key: KEYS.SUBSCRIPTIONS, cacheKey: 'subscriptions' },
+    { colName: 'ads', key: KEYS.ADS, cacheKey: 'ads' },
+    { colName: 'pricing', key: KEYS.PRICING, cacheKey: 'pricing' },
+    { colName: 'ad_sections', key: KEYS.SECTIONS, cacheKey: 'adSections' },
+    { colName: 'articles', key: KEYS.ARTICLES, cacheKey: 'articles' },
+];
+
+collectionsMap.forEach(({ colName, key, cacheKey }) => {
+    onSnapshot(collection(db, colName), (snapshot) => {
+        const items = [];
+        snapshot.forEach(doc => {
+            items.push({ id: doc.id, ...doc.data() });
+        });
+        
+        // Actualizar caché en memoria y local
+        cachedStore[cacheKey] = items;
+        setLocalCache(key, items);
+        
+        // Si la colección de artículos cargó vacía, intentamos la siembra automática
+        if (colName === 'articles' && items.length === 0) {
+            seedInitialDataIfEmpty();
+        } else {
+            notifyObservers();
+        }
+    }, (error) => {
+        console.error(`Error de suscripción en ${colName}:`, error);
+    });
+});
+
+/* ===== ENTIDAD: Suscripciones ===== */
+export const subscriptions = {
+    getAll: () => cachedStore.subscriptions,
+
+    add: async (data) => {
+        const id = generateId();
         const entry = {
-            id: generateId(),
+            id,
             ...data,
             status: 'active',
             createdAt: new Date().toISOString(),
         };
-        all.push(entry);
-        set(KEYS.SUBSCRIPTIONS, all);
+
+        // Actualización optimista local
+        cachedStore.subscriptions = [...cachedStore.subscriptions, entry];
+        setLocalCache(KEYS.SUBSCRIPTIONS, cachedStore.subscriptions);
+        notifyObservers();
+
+        // Guardar en Firestore
+        await setDoc(doc(db, 'subscriptions', id), entry);
         return entry;
     },
 
-    remove: (id) => {
-        const all = get(KEYS.SUBSCRIPTIONS).filter((s) => s.id !== id);
-        set(KEYS.SUBSCRIPTIONS, all);
+    remove: async (id) => {
+        // Actualización optimista local
+        cachedStore.subscriptions = cachedStore.subscriptions.filter(s => s.id !== id);
+        setLocalCache(KEYS.SUBSCRIPTIONS, cachedStore.subscriptions);
+        notifyObservers();
+
+        // Borrar en Firestore
+        await deleteDoc(doc(db, 'subscriptions', id));
     },
 
-    update: (id, updates) => {
-        const all = get(KEYS.SUBSCRIPTIONS).map((s) =>
+    update: async (id, updates) => {
+        // Actualización optimista local
+        cachedStore.subscriptions = cachedStore.subscriptions.map(s => 
             s.id === id ? { ...s, ...updates } : s
         );
-        set(KEYS.SUBSCRIPTIONS, all);
+        setLocalCache(KEYS.SUBSCRIPTIONS, cachedStore.subscriptions);
+        notifyObservers();
+
+        // Guardar en Firestore
+        await updateDoc(doc(db, 'subscriptions', id), updates);
     },
 };
 
-/* ===== Anuncios ===== */
+/* ===== ENTIDAD: Anuncios ===== */
 export const ads = {
-    getAll: () => get(KEYS.ADS),
+    getAll: () => cachedStore.ads,
 
     getActive: () => {
-        ads.refreshExpirations(); // Revisar si alguno expiró antes de devolver
-        return get(KEYS.ADS).filter((a) => a.status === 'active');
+        ads.refreshExpirations(); // Revisar si alguno expiró
+        return cachedStore.ads.filter((a) => a.status === 'active');
     },
 
-    /** Busca anuncios que hayan pasado su fecha de fin (si están activos) y los expira */
-    refreshExpirations: () => {
-        const all = get(KEYS.ADS);
-        let changed = false;
+    /** Busca anuncios que hayan pasado su fecha de fin y los expira */
+    refreshExpirations: async () => {
+        const all = cachedStore.ads;
         const now = new Date();
 
-        const updated = all.map(ad => {
+        all.forEach(async (ad) => {
             if (ad.status === 'active' && ad.endDate) {
                 const end = new Date(ad.endDate);
                 if (now > end) {
-                    changed = true;
-                    return { ...ad, status: 'expired' };
+                    // Actualizar en Firestore
+                    await updateDoc(doc(db, 'ads', ad.id), { status: 'expired' });
+                    
+                    // Pausar también los artículos vinculados en Redacción
+                    const linkedArticle = newsArticles.getByAdId(ad.id);
+                    if (linkedArticle) {
+                        await updateDoc(doc(db, 'articles', linkedArticle.id), { status: 'draft' });
+                    }
                 }
             }
-            return ad;
         });
-
-        if (changed) {
-            set(KEYS.ADS, updated);
-            
-            // Pausar también los artículos vinculados en Redacción
-            const expiredAds = updated.filter(a => a.status === 'expired');
-            expiredAds.forEach(ad => {
-                const linkedArticle = newsArticles.getByAdId(ad.id);
-                if (linkedArticle) {
-                    newsArticles.update(linkedArticle.id, { status: 'draft' });
-                }
-            });
-        }
     },
 
     /** Convierte anuncios activos en formato compatible con artículos para mostrar en Home */
@@ -107,7 +275,7 @@ export const ads = {
             technology: 'Tecnología',
             culture: 'Cultura',
         };
-        return get(KEYS.ADS)
+        return cachedStore.ads
             .filter((a) => a.status === 'active')
             .map((ad) => ({
                 id: `ad-${ad.id}`,
@@ -125,218 +293,216 @@ export const ads = {
             }));
     },
 
-    add: (data) => {
-        const all = get(KEYS.ADS);
-        
+    add: async (data) => {
+        const id = generateId();
         const now = new Date();
         const start = new Date(now);
         const end = new Date(now);
         
-        // Si hay planDays (ej. 7, 14, 30), calculamos la fecha de fin
         if (data.planDays) {
             end.setDate(end.getDate() + data.planDays);
         } else {
-            // Por defecto 7 días si no hay
             end.setDate(end.getDate() + 7);
         }
 
         const entry = {
-            id: generateId(),
+            id,
             ...data,
             status: 'pending',
             createdAt: now.toISOString(),
             startDate: start.toISOString(),
             endDate: end.toISOString()
         };
-        all.push(entry);
-        set(KEYS.ADS, all);
+
+        // Actualización optimista local
+        cachedStore.ads = [...cachedStore.ads, entry];
+        setLocalCache(KEYS.ADS, cachedStore.ads);
+        notifyObservers();
+
+        // Firestore
+        await setDoc(doc(db, 'ads', id), entry);
         return entry;
     },
 
-    // Renovar anuncio
-    renew: (id, newPlanDays, newTotalPrice) => {
-        const all = get(KEYS.ADS);
+    renew: async (id, newPlanDays, newTotalPrice) => {
         const now = new Date();
         const end = new Date(now);
         end.setDate(end.getDate() + newPlanDays);
 
-        const updated = all.map((a) =>
-            a.id === id ? { 
-                ...a, 
-                status: 'pending', // Vuelve a revisión tras pagar
-                startDate: now.toISOString(),
-                endDate: end.toISOString(),
-                planDays: newPlanDays,
-                totalPrice: newTotalPrice
-            } : a
-        );
-        set(KEYS.ADS, updated);
-    },
+        const updates = {
+            status: 'pending', // Vuelve a revisión tras pagar
+            startDate: now.toISOString(),
+            endDate: end.toISOString(),
+            planDays: newPlanDays,
+            totalPrice: newTotalPrice
+        };
 
-    remove: (id) => {
-        const all = get(KEYS.ADS).filter((a) => a.id !== id);
-        set(KEYS.ADS, all);
-    },
-
-    update: (id, updates) => {
-        const all = get(KEYS.ADS).map((a) =>
+        // Actualización optimista local
+        cachedStore.ads = cachedStore.ads.map(a => 
             a.id === id ? { ...a, ...updates } : a
         );
-        set(KEYS.ADS, all);
+        setLocalCache(KEYS.ADS, cachedStore.ads);
+        notifyObservers();
+
+        // Firestore
+        await updateDoc(doc(db, 'ads', id), updates);
+    },
+
+    remove: async (id) => {
+        // Actualización optimista local
+        cachedStore.ads = cachedStore.ads.filter(a => a.id !== id);
+        setLocalCache(KEYS.ADS, cachedStore.ads);
+        notifyObservers();
+
+        // Firestore
+        await deleteDoc(doc(db, 'ads', id));
+    },
+
+    update: async (id, updates) => {
+        // Actualización optimista local
+        cachedStore.ads = cachedStore.ads.map(a => 
+            a.id === id ? { ...a, ...updates } : a
+        );
+        setLocalCache(KEYS.ADS, cachedStore.ads);
+        notifyObservers();
+
+        // Firestore
+        await updateDoc(doc(db, 'ads', id), updates);
     },
 };
 
-/* ===== Precios de anuncios (base) ===== */
-const DEFAULT_PRICING = [
-    { id: 'p1', name: '1 Semana', days: 7, price: 299, currency: 'MXN', active: true },
-    { id: 'p2', name: '2 Semanas', days: 14, price: 499, currency: 'MXN', active: true },
-    { id: 'p3', name: '1 Mes', days: 30, price: 899, currency: 'MXN', active: true },
-    { id: 'p4', name: '3 Meses', days: 90, price: 2299, currency: 'MXN', active: true },
-];
-
+/* ===== ENTIDAD: Precios ===== */
 export const pricing = {
-    getAll: () => {
-        const data = get(KEYS.PRICING);
-        if (data.length === 0) {
-            set(KEYS.PRICING, DEFAULT_PRICING);
-            return DEFAULT_PRICING;
-        }
-        return data;
-    },
+    getAll: () => cachedStore.pricing.length > 0 ? cachedStore.pricing : DEFAULT_PRICING,
 
-    update: (id, updates) => {
-        const all = pricing.getAll().map((p) =>
+    update: async (id, updates) => {
+        // Actualización optimista local
+        cachedStore.pricing = pricing.getAll().map(p => 
             p.id === id ? { ...p, ...updates } : p
         );
-        set(KEYS.PRICING, all);
+        setLocalCache(KEYS.PRICING, cachedStore.pricing);
+        notifyObservers();
+
+        // Firestore
+        await setDoc(doc(db, 'pricing', id), pricing.getAll().find(p => p.id === id));
     },
 
-    add: (data) => {
-        const all = pricing.getAll();
-        const entry = { id: generateId(), ...data, active: true };
-        all.push(entry);
-        set(KEYS.PRICING, all);
+    add: async (data) => {
+        const id = generateId();
+        const entry = { id, ...data, active: true };
+
+        // Actualización optimista local
+        cachedStore.pricing = [...pricing.getAll(), entry];
+        setLocalCache(KEYS.PRICING, cachedStore.pricing);
+        notifyObservers();
+
+        // Firestore
+        await setDoc(doc(db, 'pricing', id), entry);
         return entry;
     },
 
-    remove: (id) => {
-        const all = pricing.getAll().filter((p) => p.id !== id);
-        set(KEYS.PRICING, all);
+    remove: async (id) => {
+        // Actualización optimista local
+        cachedStore.pricing = pricing.getAll().filter(p => p.id !== id);
+        setLocalCache(KEYS.PRICING, cachedStore.pricing);
+        notifyObservers();
+
+        // Firestore
+        await deleteDoc(doc(db, 'pricing', id));
     },
 };
 
-/* ===== Secciones de publicación de anuncios ===== */
-const DEFAULT_SECTIONS = [
-    { id: 's1', name: '⭐ Hero (Noticia Principal)', key: 'hero', multiplier: 5, description: 'Posición principal del sitio — máxima visibilidad', active: true },
-    { id: 's2', name: 'Política', key: 'politics', multiplier: 1.5, description: 'Sección de noticias políticas', active: true },
-    { id: 's3', name: 'Economía', key: 'economy', multiplier: 1.5, description: 'Sección de noticias económicas', active: true },
-    { id: 's4', name: 'Deportes', key: 'sports', multiplier: 1.2, description: 'Sección deportiva', active: true },
-    { id: 's5', name: 'Tecnología', key: 'technology', multiplier: 1.3, description: 'Sección de tecnología', active: true },
-    { id: 's6', name: 'Cultura', key: 'culture', multiplier: 1.0, description: 'Sección de cultura y entretenimiento', active: true },
-    { id: 's7', name: 'Sidebar (Barra lateral)', key: 'sidebar', multiplier: 0.8, description: 'Banner en la barra lateral derecha', active: true },
-];
-
+/* ===== ENTIDAD: Secciones de Anuncios ===== */
 export const adSections = {
-    getAll: () => {
-        const data = get(KEYS.SECTIONS);
-        if (data.length === 0) {
-            set(KEYS.SECTIONS, DEFAULT_SECTIONS);
-            return DEFAULT_SECTIONS;
-        }
-        return data;
-    },
+    getAll: () => cachedStore.adSections.length > 0 ? cachedStore.adSections : DEFAULT_SECTIONS,
 
-    update: (id, updates) => {
-        const all = adSections.getAll().map((s) =>
+    update: async (id, updates) => {
+        // Actualización optimista local
+        cachedStore.adSections = adSections.getAll().map(s => 
             s.id === id ? { ...s, ...updates } : s
         );
-        set(KEYS.SECTIONS, all);
+        setLocalCache(KEYS.SECTIONS, cachedStore.adSections);
+        notifyObservers();
+
+        // Firestore
+        await setDoc(doc(db, 'ad_sections', id), adSections.getAll().find(s => s.id === id));
     },
 
-    add: (data) => {
-        const all = adSections.getAll();
-        const entry = { id: generateId(), ...data, active: true };
-        all.push(entry);
-        set(KEYS.SECTIONS, all);
+    add: async (data) => {
+        const id = generateId();
+        const entry = { id, ...data, active: true };
+
+        // Actualización optimista local
+        cachedStore.adSections = [...adSections.getAll(), entry];
+        setLocalCache(KEYS.SECTIONS, cachedStore.adSections);
+        notifyObservers();
+
+        // Firestore
+        await setDoc(doc(db, 'ad_sections', id), entry);
         return entry;
     },
 
-    remove: (id) => {
-        const all = adSections.getAll().filter((s) => s.id !== id);
-        set(KEYS.SECTIONS, all);
+    remove: async (id) => {
+        // Actualización optimista local
+        cachedStore.adSections = adSections.getAll().filter(s => s.id !== id);
+        setLocalCache(KEYS.SECTIONS, cachedStore.adSections);
+        notifyObservers();
+
+        // Firestore
+        await deleteDoc(doc(db, 'ad_sections', id));
     },
 };
 
-/* ===== Artículos / Noticias ===== */
-const DEFAULT_ARTICLES = [
-    { id: 'art1', title: 'Última Hora: Gran Escándalo Político Sacude la Capital del País', excerpt: 'Las autoridades investigan presuntas irregularidades en contratos gubernamentales que podrían involucrar a varios funcionarios de alto rango.', category: 'Política', author: 'María González', image: 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=1200&h=600&fit=crop', readTime: '8 min', status: 'published', featured: true, createdAt: '2026-02-22T10:00:00Z' },
-    { id: 'art2', title: 'Actualización Económica: Cambios en el Mercado Global', excerpt: 'Los principales indicadores financieros muestran tendencias mixtas mientras los inversores evalúan el impacto de las nuevas políticas comerciales.', category: 'Economía', author: 'Carlos Ramírez', image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=600&h=400&fit=crop', readTime: '5 min', status: 'published', featured: false, createdAt: '2026-02-22T09:00:00Z' },
-    { id: 'art3', title: 'Deportes: Equipo Local Consigue Victoria Histórica', excerpt: 'Con un marcador contundente, el equipo local se posiciona como favorito para la fase final del torneo nacional.', category: 'Deportes', author: 'Roberto Herrera', image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600&h=400&fit=crop', readTime: '4 min', status: 'published', featured: false, createdAt: '2026-02-21T14:00:00Z' },
-    { id: 'art4', title: 'Tecnología: Nueva Inteligencia Artificial Revoluciona la Industria', excerpt: 'Investigadores presentan un modelo de IA capaz de resolver problemas complejos en tiempo récord.', category: 'Tecnología', author: 'Ana Martínez', image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&h=400&fit=crop', readTime: '6 min', status: 'published', featured: false, createdAt: '2026-02-21T10:00:00Z' },
-    { id: 'art5', title: 'Crisis Financiera: Bolsa de Valores Registra Caída Significativa', excerpt: 'Los mercados internacionales reaccionan ante la incertidumbre geopolítica con una jornada marcada por la volatilidad.', category: 'Economía', author: 'Luis Fernández', image: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=600&h=400&fit=crop', readTime: '5 min', status: 'published', featured: false, createdAt: '2026-02-20T16:00:00Z' },
-    { id: 'art6', title: 'Elecciones: Partidos Anuncian Candidatos para Próximos Comicios', excerpt: 'Las principales fuerzas políticas definen sus estrategias de cara a las elecciones nacionales.', category: 'Política', author: 'Patricia López', image: 'https://images.unsplash.com/photo-1540910419892-4a36d2c3266c?w=600&h=400&fit=crop', readTime: '7 min', status: 'published', featured: false, createdAt: '2026-02-20T10:00:00Z' },
-    { id: 'art7', title: 'Cultura: Festival Internacional de Cine Anuncia Programación', excerpt: 'Más de 200 películas de 45 países serán exhibidas durante la próxima edición del reconocido festival cinematográfico.', category: 'Cultura', author: 'Diana Torres', image: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=600&h=400&fit=crop', readTime: '4 min', status: 'published', featured: false, createdAt: '2026-02-19T12:00:00Z' },
-    { id: 'art8', title: 'Deportes: Selección Nacional Prepara Estrategia para Eliminatorias', excerpt: 'El cuerpo técnico confirma la convocatoria de 26 jugadores para los partidos decisivos del próximo mes.', category: 'Deportes', author: 'Miguel Ángel Ruiz', image: 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=600&h=400&fit=crop', readTime: '3 min', status: 'published', featured: false, createdAt: '2026-02-19T09:00:00Z' },
-    { id: 'art9', title: 'Ciencia: Descubrimiento Astronómico Sorprende a la Comunidad Científica', excerpt: 'Telescopios espaciales captan señales inusuales provenientes de una galaxia a millones de años luz.', category: 'Tecnología', author: 'Sofía Navarro', image: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=600&h=400&fit=crop', readTime: '6 min', status: 'published', featured: false, createdAt: '2026-02-18T15:00:00Z' },
-    { id: 'art10', title: 'Cultura: Exposición de Arte Contemporáneo Llega a la Ciudad', excerpt: 'Artistas de renombre internacional presentarán sus obras más recientes en una muestra que promete cautivar al público.', category: 'Cultura', author: 'Valentina Méndez', image: 'https://images.unsplash.com/photo-1531243269054-5ebf6f34081e?w=600&h=400&fit=crop', readTime: '4 min', status: 'published', featured: false, createdAt: '2026-02-17T11:00:00Z' },
-];
-
+/* ===== ENTIDAD: Artículos / Noticias ===== */
 export const newsArticles = {
-    getAll: () => {
-        const data = get(KEYS.ARTICLES);
-        if (data.length === 0) {
-            set(KEYS.ARTICLES, DEFAULT_ARTICLES);
-            return DEFAULT_ARTICLES;
-        }
-        return data;
-    },
+    getAll: () => cachedStore.articles,
 
-    // Solo las publicadas y no archivadas
-    getPublished: () => newsArticles.getAll()
+    getPublished: () => cachedStore.articles
         .filter((a) => a.status === 'published' && !a.archivedAt)
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
 
-    getFeatured: () => newsArticles.getAll()
+    getFeatured: () => cachedStore.articles
         .find((a) => a.featured && a.status === 'published' && !a.archivedAt) || null,
 
     getByCategory: (cat) => newsArticles.getPublished().filter((a) => a.category === cat),
 
-    getByAdId: (adId) => newsArticles.getAll().find((a) => a.adId === adId) || null,
+    getByAdId: (adId) => cachedStore.articles.find((a) => a.adId === adId) || null,
 
-    // Historial completo: activas + borradores, sin archivadas
-    getHistory: () => newsArticles.getAll()
+    getHistory: () => cachedStore.articles
         .filter((a) => !a.archivedAt)
         .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)),
 
-    // Papelera: solo las archivadas
-    getArchived: () => newsArticles.getAll()
+    getArchived: () => cachedStore.articles
         .filter((a) => !!a.archivedAt)
         .sort((a, b) => new Date(b.archivedAt) - new Date(a.archivedAt)),
 
-    add: (data) => {
-        const all = newsArticles.getAll();
+    add: async (data) => {
+        const id = data.id || generateId();
         const entry = {
-            id: generateId(),
+            id,
             ...data,
             status: data.status || 'draft',
             featured: false,
-            createdAt: new Date().toISOString(),
+            createdAt: data.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             archivedAt: null,
         };
-        all.push(entry);
-        set(KEYS.ARTICLES, all);
+
+        // Local
+        cachedStore.articles = [...cachedStore.articles, entry];
+        setLocalCache(KEYS.ARTICLES, cachedStore.articles);
+        notifyObservers();
+
+        // Firestore
+        await setDoc(doc(db, 'articles', id), entry);
         return entry;
     },
 
-    update: (id, updates) => {
-        const all = newsArticles.getAll();
-        const prevArticle = all.find((a) => a.id === id);
-
+    update: async (id, updates) => {
+        const prevArticle = cachedStore.articles.find((a) => a.id === id);
         if (!prevArticle) return;
 
         let history = prevArticle.history || [];
-        // Guardar historial si cambian datos visuales
         if (updates.visualLayout || updates.image || updates.title || updates.excerpt) {
             if (prevArticle.visualLayout || prevArticle.image) {
                 const historyEntry = {
@@ -352,49 +518,66 @@ export const newsArticles = {
             }
         }
 
-        const updatedAll = all.map((a) =>
-            a.id === id ? { ...a, ...updates, history, updatedAt: new Date().toISOString() } : a
+        const fullUpdates = {
+            ...updates,
+            history,
+            updatedAt: new Date().toISOString()
+        };
+
+        // Local
+        cachedStore.articles = cachedStore.articles.map(a => 
+            a.id === id ? { ...a, ...fullUpdates } : a
         );
-        set(KEYS.ARTICLES, updatedAll);
+        setLocalCache(KEYS.ARTICLES, cachedStore.articles);
+        notifyObservers();
+
+        // Firestore
+        await updateDoc(doc(db, 'articles', id), fullUpdates);
     },
 
-    // Mover a papelera (no borra, solo archiva)
-    archive: (id) => {
-        const all = newsArticles.getAll().map((a) =>
-            a.id === id ? { ...a, archivedAt: new Date().toISOString(), featured: false } : a
-        );
-        set(KEYS.ARTICLES, all);
+    archive: async (id) => {
+        await newsArticles.update(id, { 
+            archivedAt: new Date().toISOString(), 
+            featured: false 
+        });
     },
 
-    // Restaurar desde papelera
-    restore: (id) => {
-        const all = newsArticles.getAll().map((a) =>
-            a.id === id ? { ...a, archivedAt: null, status: 'draft' } : a
-        );
-        set(KEYS.ARTICLES, all);
+    restore: async (id) => {
+        await newsArticles.update(id, { 
+            archivedAt: null, 
+            status: 'draft' 
+        });
     },
 
-    // Borrar definitivamente (solo desde papelera)
-    remove: (id) => {
-        const all = newsArticles.getAll().filter((a) => a.id !== id);
-        set(KEYS.ARTICLES, all);
+    remove: async (id) => {
+        // Local
+        cachedStore.articles = cachedStore.articles.filter(a => a.id !== id);
+        setLocalCache(KEYS.ARTICLES, cachedStore.articles);
+        notifyObservers();
+
+        // Firestore
+        await deleteDoc(doc(db, 'articles', id));
     },
 
-    removeByAdId: (adId) => {
-        const all = newsArticles.getAll().filter((a) => a.adId !== adId);
-        set(KEYS.ARTICLES, all);
+    removeByAdId: async (adId) => {
+        const adArticle = newsArticles.getByAdId(adId);
+        if (adArticle) {
+            await newsArticles.remove(adArticle.id);
+        }
     },
 
-    setFeatured: (id) => {
-        const all = newsArticles.getAll().map((a) => ({
-            ...a,
-            featured: a.id === id,
-        }));
-        set(KEYS.ARTICLES, all);
+    setFeatured: async (id) => {
+        // Hacer un batch update o simplemente secuencial en Firestore
+        const promises = cachedStore.articles.map(async (art) => {
+            const shouldBeFeatured = art.id === id;
+            if (art.featured !== shouldBeFeatured) {
+                await updateDoc(doc(db, 'articles', art.id), { featured: shouldBeFeatured });
+            }
+        });
+        await Promise.all(promises);
     },
 
-    /** Crea un artículo borrador a partir de un anuncio aprobado */
-    createFromAd: (ad) => {
+    createFromAd: async (ad) => {
         const sectionCategoryMap = {
             politics: 'Política',
             economy: 'Economía',
@@ -403,11 +586,9 @@ export const newsArticles = {
             culture: 'Cultura',
         };
 
-        // Verificar si ya existe un artículo vinculado a este anuncio
         const existing = newsArticles.getByAdId(ad.id);
         if (existing) {
-            // Actualizar el existente
-            newsArticles.update(existing.id, {
+            await newsArticles.update(existing.id, {
                 title: ad.title,
                 excerpt: ad.description,
                 category: sectionCategoryMap[ad.sectionKey] || ad.section || 'General',
@@ -418,8 +599,7 @@ export const newsArticles = {
             return existing;
         }
 
-        // Crear nuevo artículo vinculado
-        return newsArticles.add({
+        return await newsArticles.add({
             title: ad.title,
             excerpt: ad.description,
             category: sectionCategoryMap[ad.sectionKey] || ad.section || 'General',
@@ -433,8 +613,7 @@ export const newsArticles = {
         });
     },
 
-    /** Sincroniza datos de un anuncio editado al artículo vinculado */
-    syncFromAd: (ad) => {
+    syncFromAd: async (ad) => {
         const existing = newsArticles.getByAdId(ad.id);
         if (!existing) return;
 
@@ -446,7 +625,7 @@ export const newsArticles = {
             culture: 'Cultura',
         };
 
-        newsArticles.update(existing.id, {
+        await newsArticles.update(existing.id, {
             title: ad.title,
             excerpt: ad.description,
             category: sectionCategoryMap[ad.sectionKey] || ad.section || 'General',

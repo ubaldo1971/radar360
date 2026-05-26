@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { db } from '../data/firebase';
+import { doc, onSnapshot, updateDoc, increment, setDoc } from 'firebase/firestore';
 
 const CANDIDATES = [
     // Oficialistas
@@ -13,52 +15,75 @@ const CANDIDATES = [
     { id: 'c8', name: 'Candidato Opositor 4', party: 'opositor', photo: 'https://i.pravatar.cc/150?u=8' },
 ];
 
-const STORAGE_KEY_VOTES = 'ei_poll_votes';
 const STORAGE_KEY_USER = 'ei_poll_user_votes';
 
 export default function CandidatePoll() {
     const [votes, setVotes] = useState({});
     const [userVotes, setUserVotes] = useState({ oficialista: false, opositor: false });
 
-    // Cargar votos al iniciar
     useEffect(() => {
-        // Cargar votos globales simulados
-        const storedVotes = localStorage.getItem(STORAGE_KEY_VOTES);
-        if (storedVotes) {
-            setVotes(JSON.parse(storedVotes));
-        } else {
-            // Inicializar con algunos votos aleatorios para que no se vea vacío
-            const initial = {};
-            CANDIDATES.forEach(c => initial[c.id] = Math.floor(Math.random() * 50) + 10);
-            setVotes(initial);
-            localStorage.setItem(STORAGE_KEY_VOTES, JSON.stringify(initial));
+        // 1. Suscribirse a los votos en Firestore en tiempo real
+        const pollDocRef = doc(db, 'polls', 'hermosillo2026');
+        const unsubscribe = onSnapshot(pollDocRef, (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                setVotes(docSnapshot.data());
+            } else {
+                // Si el documento no existe en Firestore, inicializarlo con votos aleatorios
+                const initial = {};
+                CANDIDATES.forEach(c => initial[c.id] = Math.floor(Math.random() * 50) + 10);
+                setVotes(initial);
+                setDoc(pollDocRef, initial);
+            }
+        }, (error) => {
+            console.error("Error al suscribirse a los votos en Firestore:", error);
+        });
+
+        // 2. Cargar historial de votos del usuario local (para restricción de 1 voto por alianza)
+        try {
+            const storedUser = localStorage.getItem(STORAGE_KEY_USER);
+            if (storedUser) {
+                setUserVotes(JSON.parse(storedUser));
+            }
+        } catch (e) {
+            console.error("Error al cargar datos del usuario local:", e);
         }
 
-        // Cargar historial del usuario actual (simulación de IP)
-        const storedUser = localStorage.getItem(STORAGE_KEY_USER);
-        if (storedUser) {
-            setUserVotes(JSON.parse(storedUser));
-        }
+        return () => unsubscribe();
     }, []);
 
     const totalVotes = Object.values(votes).reduce((sum, v) => sum + v, 0) || 1; // Evitar división por 0
 
-    const handleVote = (candidate) => {
+    const handleVote = async (candidate) => {
         // Validar si ya votó por esta alianza
         if (userVotes[candidate.party]) {
             alert(`Ya has registrado tu voto por la alianza ${candidate.party}.`);
             return;
         }
 
-        // Actualizar estado del usuario
+        // Actualizar estado del usuario en local para restringir nuevos votos
         const newUserVotes = { ...userVotes, [candidate.party]: true };
         setUserVotes(newUserVotes);
-        localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(newUserVotes));
+        try {
+            localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(newUserVotes));
+        } catch (e) {
+            console.error("Error guardando el voto del usuario local:", e);
+        }
 
-        // Actualizar conteo global
-        const newVotes = { ...votes, [candidate.id]: (votes[candidate.id] || 0) + 1 };
-        setVotes(newVotes);
-        localStorage.setItem(STORAGE_KEY_VOTES, JSON.stringify(newVotes));
+        // Incrementar el voto de forma atómica en Firestore
+        try {
+            const pollDocRef = doc(db, 'polls', 'hermosillo2026');
+            await updateDoc(pollDocRef, {
+                [candidate.id]: increment(1)
+            });
+        } catch (error) {
+            console.error("Error al registrar el voto en Firestore:", error);
+            alert("Hubo un problema al registrar tu voto en la nube. Por favor intenta de nuevo.");
+            
+            // Revertir estado local en caso de error
+            const revertedUserVotes = { ...userVotes, [candidate.party]: false };
+            setUserVotes(revertedUserVotes);
+            localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(revertedUserVotes));
+        }
     };
 
     return (

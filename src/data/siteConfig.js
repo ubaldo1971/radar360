@@ -1,7 +1,10 @@
 /**
- * siteConfig.js — Configuración visual del portal Radar360.
- * Permite editar desde el Admin el contenido de cada sección del portal.
+ * siteConfig.js — Configuración visual del portal Radar360 persistida en Firestore.
+ * Carga localmente (Offline-First) y sincroniza cambios de diseño en tiempo real.
  */
+import { useState, useEffect } from 'react';
+import { db } from './firebase';
+import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 
 const KEY = 'ei_site_config';
 
@@ -90,17 +93,21 @@ const DEFAULT_CONFIG = {
     },
 };
 
-function getAll() {
+/* ===== Cache Helpers ===== */
+function getLocalCache(key, fallback) {
     try {
-        const stored = JSON.parse(localStorage.getItem(KEY));
-        if (!stored) {
-            localStorage.setItem(KEY, JSON.stringify(DEFAULT_CONFIG));
-            return DEFAULT_CONFIG;
-        }
-        // Deep merge: stored over defaults to handle new keys gracefully
-        return deepMerge(DEFAULT_CONFIG, stored);
+        const stored = localStorage.getItem(key);
+        return stored ? JSON.parse(stored) : fallback;
     } catch {
-        return DEFAULT_CONFIG;
+        return fallback;
+    }
+}
+
+function setLocalCache(key, data) {
+    try {
+        localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+        console.error("Error saving site config cache: ", e);
     }
 }
 
@@ -120,25 +127,77 @@ function deepMerge(target, source) {
     return result;
 }
 
+/* ===== Memory State & Observer Pattern ===== */
+let cachedConfig = getLocalCache(KEY, DEFAULT_CONFIG);
+const observers = [];
+
+function notifyObservers() {
+    observers.forEach(cb => cb());
+}
+
+export function subscribeToConfigChanges(callback) {
+    observers.push(callback);
+    return () => {
+        const index = observers.indexOf(callback);
+        if (index !== -1) {
+            observers.splice(index, 1);
+        }
+    };
+}
+
+export function useRadarConfig() {
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+        return subscribeToConfigChanges(() => setTick(t => t + 1));
+    }, []);
+    return tick;
+}
+
+/* ===== Firestore Real-time Sync ===== */
+const configDocRef = doc(db, 'site_config', 'global');
+
+onSnapshot(configDocRef, (docSnapshot) => {
+    if (docSnapshot.exists()) {
+        const remoteData = docSnapshot.data();
+        const merged = deepMerge(DEFAULT_CONFIG, remoteData);
+        cachedConfig = merged;
+        setLocalCache(KEY, merged);
+        notifyObservers();
+    } else {
+        // Seeding si no existe en Firestore
+        console.log("🌱 Seteando configuración por defecto en Firestore...");
+        setDoc(configDocRef, DEFAULT_CONFIG);
+    }
+}, (error) => {
+    console.error("Error de suscripción en siteConfig global:", error);
+});
+
+/* ===== Exported API ===== */
 export const siteConfig = {
-    getAll,
+    getAll: () => cachedConfig,
 
-    get: (section) => getAll()[section] || {},
+    get: (section) => cachedConfig[section] || {},
 
-    update: (section, updates) => {
-        const current = getAll();
+    update: async (section, updates) => {
+        const current = { ...cachedConfig };
         current[section] = { ...current[section], ...updates };
-        localStorage.setItem(KEY, JSON.stringify(current));
+        
+        // Actualización optimista local
+        cachedConfig = current;
+        setLocalCache(KEY, current);
+        notifyObservers();
+
+        // Firestore
+        await setDoc(configDocRef, current);
     },
 
-    updateSection: (sectionName, updates) => {
-        const current = getAll();
+    updateSection: async (sectionName, updates) => {
+        const current = { ...cachedConfig };
         const prevSectionState = current.sections.items[sectionName] || {};
         
         // Time Machine: Save previous state if there are visual layout updates
         let history = prevSectionState.history || [];
         if (updates.visualLayout || updates.bannerImage || updates.bgColor) {
-            // Guardar solo si el estado actual tiene visualLayout (para no guardar vacíos inútiles)
             if (prevSectionState.visualLayout || prevSectionState.bannerImage) {
                 const historyEntry = {
                     timestamp: Date.now(),
@@ -151,7 +210,7 @@ export const siteConfig = {
                         textColor: prevSectionState.textColor
                     }
                 };
-                history = [historyEntry, ...history].slice(0, 10); // Keep last 10
+                history = [historyEntry, ...history].slice(0, 10);
             }
         }
 
@@ -160,16 +219,33 @@ export const siteConfig = {
             ...updates,
             history
         };
-        localStorage.setItem(KEY, JSON.stringify(current));
+
+        // Actualización optimista local
+        cachedConfig = current;
+        setLocalCache(KEY, current);
+        notifyObservers();
+
+        // Firestore
+        await setDoc(configDocRef, current);
     },
 
-    reorderSections: (newOrder) => {
-        const current = getAll();
+    reorderSections: async (newOrder) => {
+        const current = { ...cachedConfig };
         current.sections.order = newOrder;
-        localStorage.setItem(KEY, JSON.stringify(current));
+
+        // Actualización optimista local
+        cachedConfig = current;
+        setLocalCache(KEY, current);
+        notifyObservers();
+
+        // Firestore
+        await setDoc(configDocRef, current);
     },
 
-    reset: () => {
-        localStorage.setItem(KEY, JSON.stringify(DEFAULT_CONFIG));
+    reset: async () => {
+        cachedConfig = DEFAULT_CONFIG;
+        setLocalCache(KEY, DEFAULT_CONFIG);
+        notifyObservers();
+        await setDoc(configDocRef, DEFAULT_CONFIG);
     },
 };
