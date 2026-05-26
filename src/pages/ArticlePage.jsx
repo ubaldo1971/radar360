@@ -73,8 +73,8 @@ export default function ArticlePage() {
         })
         : 'Fecha no disponible';
 
-    // Generate full body content from excerpt (since we don't have full body stored)
-    const bodyContent = article.body || article.excerpt || '';
+    // Generate full body content (prevent duplication if it is the same as excerpt)
+    const bodyContent = (article.body && article.body.trim() !== article.excerpt?.trim()) ? article.body : '';
 
     const handleShare = (network) => {
         const url = window.location.href;
