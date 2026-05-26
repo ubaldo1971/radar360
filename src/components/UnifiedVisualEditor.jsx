@@ -291,42 +291,6 @@ const UnifiedVisualEditor = ({ mode, initialData, history = [], onSave, onCancel
                         </div>
                     </div>
 
-                    {mode === 'article' && !selectedId && (
-                        <div className="mb-8 pb-6 border-b border-white/10">
-                            <h3 className="text-white font-black text-xs uppercase tracking-widest mb-4 text-accent">Contenido Adicional</h3>
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] text-slate-400 font-bold uppercase">Texto de la Nota</label>
-                                    <textarea 
-                                        value={body} 
-                                        onChange={(e) => setBody(e.target.value)}
-                                        placeholder="Cuerpo completo del artículo..."
-                                        rows={4}
-                                        className="w-full bg-slate-900 border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-accent"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] text-slate-400 font-bold uppercase">Explicación de la Nota</label>
-                                    <textarea 
-                                        value={explanation} 
-                                        onChange={(e) => setExplanation(e.target.value)}
-                                        placeholder="Análisis o explicación extra..."
-                                        rows={3}
-                                        className="w-full bg-slate-900 border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-accent"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] text-slate-400 font-bold uppercase">Créditos</label>
-                                    <input 
-                                        value={credits} 
-                                        onChange={(e) => setCredits(e.target.value)}
-                                        placeholder="Ej. Periodista: Jovani la pluma sangrienta"
-                                        className="w-full bg-slate-900 border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-accent"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
                     {!selectedId ? (
                         <div className="space-y-6">
