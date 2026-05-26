@@ -164,13 +164,29 @@ onSnapshot(configDocRef, (docSnapshot) => {
         setLocalCache(KEY, merged);
         notifyObservers();
     } else {
-        // Seeding si no existe en Firestore
-        console.log("🌱 Seteando configuración por defecto en Firestore...");
-        setDoc(configDocRef, DEFAULT_CONFIG);
+        console.log("🌱 La configuración global no existe en Firestore. Usando valores locales por defecto.");
+        cachedConfig = DEFAULT_CONFIG;
+        setLocalCache(KEY, DEFAULT_CONFIG);
+        notifyObservers();
     }
 }, (error) => {
     console.error("Error de suscripción en siteConfig global:", error);
 });
+
+/**
+ * Realiza la siembra (seeding) de la configuración global en Firestore.
+ * Debe ser invocada únicamente por un usuario autenticado (administrador).
+ */
+export async function seedSiteConfig() {
+    try {
+        console.log("🌱 Seteando configuración visual global en Firestore...");
+        await setDoc(configDocRef, DEFAULT_CONFIG);
+        console.log("✅ Configuración visual global inicializada en Firestore.");
+    } catch (error) {
+        console.error("Error durante la siembra de configuración global: ", error);
+        throw error;
+    }
+}
 
 /* ===== Exported API ===== */
 export const siteConfig = {
