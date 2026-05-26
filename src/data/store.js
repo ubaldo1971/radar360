@@ -121,13 +121,19 @@ export function useRadarStore() {
 // Variable para controlar si ya realizamos la siembra inicial
 let isSeeding = false;
 
-async function seedInitialDataIfEmpty() {
+/**
+ * Realiza la siembra (seeding) de datos iniciales en Firestore.
+ * Debe ser invocada únicamente por un usuario autenticado (administrador)
+ * para cumplir con las reglas de seguridad.
+ */
+export async function seedDatabase() {
     if (isSeeding) return;
     isSeeding = true;
     try {
+        console.log("🔥 Verificando si Firestore está vacío para siembra de datos...");
         const querySnapshot = await getDocs(collection(db, 'articles'));
         if (querySnapshot.empty) {
-            console.log("🔥 Firestore está vacío. Iniciando siembra (seeding) automática...");
+            console.log("🔥 Firestore está vacío. Iniciando siembra (seeding)...");
             const batch = writeBatch(db);
 
             // Subir artículos por defecto
@@ -149,10 +155,13 @@ async function seedInitialDataIfEmpty() {
             });
 
             await batch.commit();
-            console.log("✅ Siembra de datos completada exitosamente.");
+            console.log("✅ Siembra de datos iniciales en Firestore completada exitosamente.");
+        } else {
+            console.log("✅ Firestore ya contiene artículos. No se requiere siembra.");
         }
     } catch (error) {
-        console.error("Error durante la siembra de datos: ", error);
+        console.error("Error durante la siembra de datos en Firestore: ", error);
+        throw error;
     } finally {
         isSeeding = false;
     }
@@ -177,13 +186,7 @@ collectionsMap.forEach(({ colName, key, cacheKey }) => {
         // Actualizar caché en memoria y local
         cachedStore[cacheKey] = items;
         setLocalCache(key, items);
-        
-        // Si la colección de artículos cargó vacía, intentamos la siembra automática
-        if (colName === 'articles' && items.length === 0) {
-            seedInitialDataIfEmpty();
-        } else {
-            notifyObservers();
-        }
+        notifyObservers();
     }, (error) => {
         console.error(`Error de suscripción en ${colName}:`, error);
     });

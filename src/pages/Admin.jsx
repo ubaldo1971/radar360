@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { subscriptions, ads, pricing, adSections, newsArticles, useRadarStore } from '../data/store';
+import { subscriptions, ads, pricing, adSections, newsArticles, useRadarStore, seedDatabase } from '../data/store';
 import { siteConfig, useRadarConfig } from '../data/siteConfig';
 import UnifiedVisualEditor from '../components/UnifiedVisualEditor';
 import { auth } from '../data/firebase';
@@ -34,6 +34,15 @@ export default function Admin() {
         });
         return () => unsubscribe();
     }, []);
+
+    // Sembrar la base de datos de manera segura solo cuando el administrador inicie sesión
+    useEffect(() => {
+        if (authenticated) {
+            seedDatabase().catch(err => {
+                console.error("Error al sembrar base de datos en Firestore:", err);
+            });
+        }
+    }, [authenticated]);
 
     const handleLogin = async (e) => {
         e.preventDefault();
