@@ -2,8 +2,10 @@
  * Header — Logo, título del sitio y barra de búsqueda.
  */
 import { useState, useEffect } from 'react';
+import { siteConfig } from '../data/siteConfig';
 
 export default function Header() {
+    const cfg = siteConfig.get('header');
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [darkMode, setDarkMode] = useState(
@@ -24,11 +26,28 @@ export default function Header() {
     const toggleDarkMode = () => setDarkMode(!darkMode);
 
     return (
-        <header className="bg-card text-text-primary border-b border-border">
+        <header 
+            className="text-text-primary border-b border-border transition-colors duration-300"
+            style={{ backgroundColor: cfg?.bgColor || '#ffffff' }}
+        >
             <div className="max-w-7xl mx-auto px-6 md:px-8 py-5 flex items-center justify-between gap-5">
                 {/* Logo + Title */}
-                <a href="/" className="flex items-center group">
+                <a href="/" className="flex items-center gap-3 group">
                     <img src="/logo.png" alt="Radar360 Logo" className="h-16 md:h-20 w-auto object-contain transition-transform duration-300 group-hover:scale-105" />
+                    {(cfg?.siteName || cfg?.tagline) && (
+                        <div className="flex flex-col text-left">
+                            {cfg.siteName && (
+                                <span className="text-xl md:text-2xl font-black tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>
+                                    {cfg.siteName}
+                                </span>
+                            )}
+                            {cfg.tagline && (
+                                <span className="text-[10px] md:text-xs font-semibold text-text-muted uppercase tracking-widest leading-none mt-1">
+                                    {cfg.tagline}
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </a>
 
                 {/* Actions: Search + Dark Mode */}
