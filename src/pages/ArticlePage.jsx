@@ -1,6 +1,7 @@
 /**
  * ArticlePage — Página completa de un artículo con diseño tipo periódico.
  */
+import { useParams, useNavigate } from 'react-router-dom';
 import { newsArticles, ads, useRadarStore } from '../data/store';
 import { useRadarConfig } from '../data/siteConfig';
 

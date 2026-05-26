@@ -8,7 +8,7 @@ import { subscriptions, ads, pricing, adSections, newsArticles, useRadarStore, s
 import { siteConfig, useRadarConfig, seedSiteConfig } from '../data/siteConfig';
 import UnifiedVisualEditor from '../components/UnifiedVisualEditor';
 import { auth } from '../data/firebase';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from 'firebase/auth';
 
 export default function Admin() {
     useRadarStore();
@@ -52,12 +52,33 @@ export default function Admin() {
         e.preventDefault();
         setIsLoading(true);
         setPwError('');
+
+        if (password !== 'radar3602026') {
+            setPwError('Contraseña incorrecta');
+            setIsLoading(false);
+            return;
+        }
+
         try {
+            // Intentar iniciar sesión
             await signInWithEmailAndPassword(auth, 'admin@radar360.com', password);
         } catch (error) {
             console.error("Login error:", error);
-            if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                setPwError('Contraseña incorrecta');
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                // Si el usuario no existe, intentar crearlo automáticamente con la contraseña correcta
+                try {
+                    console.log("Creando cuenta de administrador por primera vez...");
+                    await createUserWithEmailAndPassword(auth, 'admin@radar360.com', password);
+                } catch (createError) {
+                    console.error("Error al registrar admin:", createError);
+                    if (createError.code === 'auth/operation-not-allowed') {
+                        setPwError('⚠️ El proveedor de Correo/Contraseña está desactivado en Firebase. Por favor, ve a la Consola de Firebase > Authentication > Sign-in method y activa "Correo electrónico/contraseña".');
+                    } else {
+                        setPwError('Error al crear cuenta de administrador: ' + createError.message);
+                    }
+                }
+            } else if (error.code === 'auth/operation-not-allowed') {
+                setPwError('⚠️ El proveedor de Correo/Contraseña está desactivado en Firebase. Por favor, ve a la Consola de Firebase > Authentication > Sign-in method y activa "Correo electrónico/contraseña".');
             } else {
                 setPwError('Error al iniciar sesión: ' + error.message);
             }

@@ -4,7 +4,8 @@
  * y notifica en tiempo real a los componentes usando el hook useRadarStore.
  */
 import { useState, useEffect } from 'react';
-import { db } from './firebase';
+import { db, auth } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { 
     collection, 
     doc, 
@@ -13,7 +14,9 @@ import {
     deleteDoc, 
     onSnapshot, 
     writeBatch, 
-    getDocs 
+    getDocs,
+    query,
+    where
 } from 'firebase/firestore';
 
 const KEYS = {
@@ -167,30 +170,116 @@ export async function seedDatabase() {
     }
 }
 
-// Suscribirse a las colecciones de Firestore
-const collectionsMap = [
-    { colName: 'subscriptions', key: KEYS.SUBSCRIPTIONS, cacheKey: 'subscriptions' },
-    { colName: 'ads', key: KEYS.ADS, cacheKey: 'ads' },
-    { colName: 'pricing', key: KEYS.PRICING, cacheKey: 'pricing' },
-    { colName: 'ad_sections', key: KEYS.SECTIONS, cacheKey: 'adSections' },
-    { colName: 'articles', key: KEYS.ARTICLES, cacheKey: 'articles' },
-];
+// Listeners activos para poder cancelarlos y re-crearlos
+let subscriptionsUnsubscribe = null;
+let adsUnsubscribe = null;
+let pricingUnsubscribe = null;
+let adSectionsUnsubscribe = null;
+let articlesUnsubscribe = null;
 
-collectionsMap.forEach(({ colName, key, cacheKey }) => {
-    onSnapshot(collection(db, colName), (snapshot) => {
-        const items = [];
-        snapshot.forEach(doc => {
-            items.push({ id: doc.id, ...doc.data() });
+// 1. Suscripciones públicas inmediatas (siempre accesibles)
+function startPublicSubscriptions() {
+    // Pricing
+    if (!pricingUnsubscribe) {
+        pricingUnsubscribe = onSnapshot(collection(db, 'pricing'), (snapshot) => {
+            const items = [];
+            snapshot.forEach(doc => items.push({ id: doc.id, ...doc.data() }));
+            cachedStore.pricing = items;
+            setLocalCache(KEYS.PRICING, items);
+            notifyObservers();
+        }, (error) => {
+            console.error("Error de suscripción en pricing:", error);
         });
+    }
+
+    // Ad Sections
+    if (!adSectionsUnsubscribe) {
+        adSectionsUnsubscribe = onSnapshot(collection(db, 'ad_sections'), (snapshot) => {
+            const items = [];
+            snapshot.forEach(doc => items.push({ id: doc.id, ...doc.data() }));
+            cachedStore.adSections = items;
+            setLocalCache(KEYS.SECTIONS, items);
+            notifyObservers();
+        }, (error) => {
+            console.error("Error de suscripción en ad_sections:", error);
+        });
+    }
+
+    // Articles
+    if (!articlesUnsubscribe) {
+        articlesUnsubscribe = onSnapshot(collection(db, 'articles'), (snapshot) => {
+            const items = [];
+            snapshot.forEach(doc => items.push({ id: doc.id, ...doc.data() }));
+            cachedStore.articles = items;
+            setLocalCache(KEYS.ARTICLES, items);
+            notifyObservers();
+        }, (error) => {
+            console.error("Error de suscripción en articles:", error);
+        });
+    }
+}
+
+// 2. Suscripciones dinámicas según el estado de autenticación (Admin vs Público)
+onAuthStateChanged(auth, (user) => {
+    // Limpiar listeners dinámicos anteriores si existen
+    if (subscriptionsUnsubscribe) {
+        subscriptionsUnsubscribe();
+        subscriptionsUnsubscribe = null;
+    }
+    if (adsUnsubscribe) {
+        adsUnsubscribe();
+        adsUnsubscribe = null;
+    }
+
+    if (user) {
+        console.log("🔒 Administrador autenticado en store.js. Iniciando suscripciones completas...");
         
-        // Actualizar caché en memoria y local
-        cachedStore[cacheKey] = items;
-        setLocalCache(key, items);
+        // Suscripción completa a subscriptions
+        subscriptionsUnsubscribe = onSnapshot(collection(db, 'subscriptions'), (snapshot) => {
+            const items = [];
+            snapshot.forEach(doc => items.push({ id: doc.id, ...doc.data() }));
+            cachedStore.subscriptions = items;
+            setLocalCache(KEYS.SUBSCRIPTIONS, items);
+            notifyObservers();
+        }, (error) => {
+            console.error("Error de suscripción en subscriptions (Admin):", error);
+        });
+
+        // Suscripción completa a ads
+        adsUnsubscribe = onSnapshot(collection(db, 'ads'), (snapshot) => {
+            const items = [];
+            snapshot.forEach(doc => items.push({ id: doc.id, ...doc.data() }));
+            cachedStore.ads = items;
+            setLocalCache(KEYS.ADS, items);
+            notifyObservers();
+        }, (error) => {
+            console.error("Error de suscripción en ads (Admin):", error);
+        });
+
+    } else {
+        console.log("🌐 Usuario público/no autenticado en store.js. Iniciando suscripciones restringidas...");
+
+        // Usuario público no puede leer 'subscriptions', así que vaciamos el caché
+        cachedStore.subscriptions = [];
+        setLocalCache(KEYS.SUBSCRIPTIONS, []);
         notifyObservers();
-    }, (error) => {
-        console.error(`Error de suscripción en ${colName}:`, error);
-    });
+
+        // Usuario público solo puede leer anuncios 'activos'. Hacemos una consulta filtrada
+        const activeAdsQuery = query(collection(db, 'ads'), where('status', '==', 'active'));
+        adsUnsubscribe = onSnapshot(activeAdsQuery, (snapshot) => {
+            const items = [];
+            snapshot.forEach(doc => items.push({ id: doc.id, ...doc.data() }));
+            cachedStore.ads = items;
+            setLocalCache(KEYS.ADS, items);
+            notifyObservers();
+        }, (error) => {
+            console.error("Error de suscripción en ads (Público):", error);
+        });
+    }
 });
+
+// Iniciar suscripciones públicas al cargar el módulo
+startPublicSubscriptions();
 
 /* ===== ENTIDAD: Suscripciones ===== */
 export const subscriptions = {
