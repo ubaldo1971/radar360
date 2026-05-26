@@ -1676,6 +1676,7 @@ function PortalDesignPanel() {
     const updateFooter = (f, v) => { const n = { ...cfg, footer: { ...cfg.footer, [f]: v } }; setCfg(n); siteConfig.update('footer', n.footer); };
     const updateSocial = (p, v) => { const n = JSON.parse(JSON.stringify(cfg)); n.footer.socialLinks[p] = v; setCfg(n); siteConfig.update('footer', n.footer); };
     const updateSec = (s, f, v) => { const n = JSON.parse(JSON.stringify(cfg)); if (!n.sections.items[s]) n.sections.items[s] = {}; n.sections.items[s][f] = v; setCfg(n); siteConfig.updateSection(s, { [f]: v }); };
+    const updateSecMultiple = (s, updates) => { const n = JSON.parse(JSON.stringify(cfg)); if (!n.sections.items[s]) n.sections.items[s] = {}; Object.entries(updates).forEach(([f, v]) => { n.sections.items[s][f] = v; }); setCfg(n); siteConfig.updateSection(s, updates); };
 
     const inp = 'w-full px-4 py-2.5 bg-white border border-border rounded-xl text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition-all';
     const lbl = 'block text-xs font-bold text-text-muted uppercase tracking-wide mb-1.5';
@@ -1782,12 +1783,14 @@ function PortalDesignPanel() {
                     initialData={cfg.sections.items[visualEditingSection] || {}}
                     history={cfg.sections.items[visualEditingSection]?.history || []}
                     onSave={(payload) => {
-                        updateSec(visualEditingSection, 'title', payload.title);
-                        updateSec(visualEditingSection, 'subtitle', payload.subtitle);
-                        updateSec(visualEditingSection, 'bannerImage', payload.bannerImage);
-                        updateSec(visualEditingSection, 'bgColor', payload.bgColor);
-                        updateSec(visualEditingSection, 'textColor', payload.textColor);
-                        updateSec(visualEditingSection, 'visualLayout', payload.visualLayout);
+                        updateSecMultiple(visualEditingSection, {
+                            title: payload.title,
+                            subtitle: payload.subtitle,
+                            bannerImage: payload.bannerImage,
+                            bgColor: payload.bgColor,
+                            textColor: payload.textColor,
+                            visualLayout: payload.visualLayout
+                        });
                         setVisualEditingSection(null);
                         confirmSave();
                     }}
